@@ -101,6 +101,68 @@ class HDD(nn.Module):
             x = self.short_connect(x)
         return self.rel(xx + x + xxx)
 
+class HDD_first(nn.Module):
+    def __init__(self, in_ch, out_ch):
+        super(HDD_first, self).__init__()
+
+        self.in_ch = in_ch
+        self.mid_mid = out_ch // 7
+        self.out_ch = out_ch
+        self.conv1x1_mid = Conv_block(self.in_ch, self.out_ch, [1, 1])
+        self.conv1x1_2 = nn.Conv2d(self.out_ch, self.out_ch, 1)
+        self.conv3x3_3_1 = Conv_block(self.mid_mid, self.mid_mid, [1, 3])
+        self.conv3x3_2_1 = Conv_block(self.mid_mid, self.mid_mid, [1, 3])
+        self.conv3x3_1_1 = Conv_block(self.mid_mid, self.mid_mid, [1, 3])
+        self.conv3x3_1 = Conv_block(self.mid_mid, self.mid_mid, [1, 3])
+        self.conv3x1_1 = Conv_block(self.mid_mid, self.mid_mid, [1, 3])
+        self.conv1x3_1 = Conv_block(self.mid_mid, self.mid_mid, [1, 3])
+
+        self.conv3x3_3_2 = Conv_block(self.mid_mid, self.mid_mid, [3, 1])
+        self.conv3x3_1_2 = Conv_block(self.mid_mid, self.mid_mid, [3, 1])
+        self.conv3x3_2_2 = Conv_block(self.mid_mid, self.mid_mid, [3, 1])
+        self.conv3x3_2 = Conv_block(self.mid_mid, self.mid_mid, [3, 1])
+        self.conv3x1_2 = Conv_block(self.mid_mid, self.mid_mid, [3, 1])
+        self.conv1x3_2 = Conv_block(self.mid_mid, self.mid_mid, [3, 1])
+        # self.conv1x1_2 = Conv_block(self.mid_mid, self.mid_mid, [1, 1])
+        self.conv1x1_1 = nn.Conv2d(self.out_ch, self.out_ch, 1)
+        self.rel = nn.ReLU(inplace=True)
+        if self.in_ch > self.out_ch:
+            self.short_connect = nn.Conv2d(in_ch, out_ch, 1, padding=0)
+
+    def forward(self, x):
+        xxx = self.conv1x1_mid(x)
+        x0 = xxx[:, 0:self.mid_mid, ...]
+        x1 = xxx[:, self.mid_mid:self.mid_mid * 2, ...]
+        x2 = xxx[:, self.mid_mid * 2:self.mid_mid * 3, ...]
+        x3 = xxx[:, self.mid_mid * 3:self.mid_mid * 4, ...]
+        x4 = xxx[:, self.mid_mid * 4:self.mid_mid * 5, ...]
+        x5 = xxx[:, self.mid_mid * 5:self.mid_mid * 6, ...]
+        x6 = xxx[:, self.mid_mid * 6:self.mid_mid * 7, ...]
+        x1 = self.conv1x3_1(x1)
+        x2 = self.conv3x1_1(x2 + x1)
+        x3 = self.conv3x3_1(x3 + x2)
+        x4 = self.conv3x3_1_1(x4 + x3)
+        x5 = self.conv3x3_2_1(x5 + x4)
+        x6 = self.conv3x3_3_1(x5 + x6)
+        xxx = self.conv1x1_1(torch.cat((x0, x1, x2, x3, x4, x5, x6), dim=1))
+        x0 = xxx[:, 0:self.mid_mid, ...]
+        x1_2 = xxx[:, self.mid_mid:self.mid_mid * 2, ...]
+        x2_2 = xxx[:, self.mid_mid * 2:self.mid_mid * 3, ...]
+        x3_2 = xxx[:, self.mid_mid * 3:self.mid_mid * 4, ...]
+        x4_2 = xxx[:, self.mid_mid * 4:self.mid_mid * 5, ...]
+        x5_2 = xxx[:, self.mid_mid * 5:self.mid_mid * 6, ...]
+        x6_2 = xxx[:, self.mid_mid * 6:self.mid_mid * 7, ...]
+        x1 = self.conv1x3_2(x1_2)
+        x2 = self.conv3x1_2(x1 + x2_2)
+        x3 = self.conv3x3_2(x2 + x3_2)
+        x4 = self.conv3x3_1_2(x3 + x4_2)
+        x5 = self.conv3x3_2_2(x4 + x5_2)
+        x6 = self.conv3x3_3_2(x5 + x6_2)
+        xx = torch.cat((x0, x1, x2, x3, x4, x5, x6), dim=1)
+        xx = self.conv1x1_2(xx)
+        if self.in_ch > self.out_ch:
+            x = self.short_connect(x)
+        return self.rel(xx + xxx),self.rel(xx +x+ xxx)
 
 class Conv_down_2(nn.Module):
     def __init__(self, in_ch, out_ch):
@@ -134,7 +196,21 @@ class Conv_down(nn.Module):
         else:
             pool_x = None
         return pool_x, x
+class Conv_down_first(nn.Module):
+    '''(conv => ReLU) * 2 => MaxPool2d'''
 
+    def __init__(self, in_ch, out_ch, flage):
+
+        super(Conv_down_first, self).__init__()
+        self.in_ch = in_ch
+        self.out_ch = out_ch
+        self.flage = flage
+        self.conv = HDD_first(self.in_ch, self.out_ch)
+
+    def forward(self, x):
+
+        x,y = self.conv(x)
+        return x, y
 
 class Conv_down2(nn.Module):
     '''(conv => ReLU) * 2 => MaxPool2d'''
@@ -247,9 +323,9 @@ class cs_net(nn.Module):
         super(cs_net, self).__init__()
         self.filter = num_filters
         self.first = Conv_down2(5, 23, True)
-        self.Conv_down1_1 = Conv_down(self.filter, self.filter, False)
-        self.Conv_down1_2 = Conv_down(self.filter, self.filter, False)
-        self.Conv_down1_3 = Conv_down(self.filter, self.filter, False)
+        self.Conv_down1_1 = Conv_down_first(self.filter, self.filter, False)
+        self.Conv_down1_2 = Conv_down_first(self.filter, self.filter, False)
+        self.Conv_down1_3 = Conv_down_first(self.filter, self.filter, False)
         self.Conv_down2 = Conv_down(self.filter * 2, self.filter * 2, True)
         self.Conv_down3 = Conv_down(self.filter * 4, self.filter * 4, True)
 
@@ -288,9 +364,9 @@ class cs_net(nn.Module):
         ori_2 = self.avg(x[:, 2, :, :].unsqueeze(1))
         ori_3 = self.avg(x[:, 3, :, :].unsqueeze(1))
         x_1, x_2, x_3 = self.first(x)
-        _, conv1_1 = self.Conv_down1_1(torch.cat((x_1, ori_1), dim=1))
-        _, conv1_2 = self.Conv_down1_2(torch.cat((x_2, ori_2), dim=1))
-        _, conv1_3 = self.Conv_down1_3(torch.cat((x_3, ori_3), dim=1))
+        conv0_1, conv1_1 = self.Conv_down1_1(torch.cat((x_1, ori_1), dim=1))
+        conv0_2, conv1_2 = self.Conv_down1_2(torch.cat((x_2, ori_2), dim=1))
+        conv0_3, conv1_3 = self.Conv_down1_3(torch.cat((x_3, ori_3), dim=1))
         x = torch.cat((conv1_1, conv1_2, conv1_3), dim=1)
         x = self.down(x)
         x, conv2 = self.Conv_down2(x)
@@ -302,10 +378,10 @@ class cs_net(nn.Module):
         x2 = self.se2(x)
         x3 = self.se3(x)
 
-        x1_1 = self.Conv_up1_4(x1, conv1_1)
-        x2_1 = self.Conv_up2_4(x2, conv1_2)
-        x2_2 = self.Conv_up2_4_2(x2, conv1_2)
-        x3_1 = self.Conv_up3_4(x3, conv1_3)
+        x1_1 = self.Conv_up1_4(x1, conv0_1)
+        x2_1 = self.Conv_up2_4(x2, conv0_2)
+        x2_2 = self.Conv_up2_4_2(x2, conv0_2)
+        x3_1 = self.Conv_up3_4(x3, conv0_3)
 
         x1_1 = self.up1(x1_1)
         # x1_2=self.up1(x1_2)

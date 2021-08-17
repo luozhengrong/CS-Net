@@ -76,22 +76,46 @@ def validate_model2(model, data_val, criterion, epoch, header2, save_dir, save_f
                 # output_v = logit / 8.0
             elif testflip == 1:
                 # print(image_v.shape)
-                logit = F.softmax(model(image_v)[1], 1)
-                logit += F.softmax(model(image_v.flip(dims=(2,)))[1].flip(dims=(2,)), 1)
-                logit += F.softmax(model(image_v.flip(dims=(3,)))[1].flip(dims=(3,)), 1)
-                logit += F.softmax(model(image_v.flip(dims=(2, 3)))[1].flip(dims=(2, 3)), 1)
-                logit += F.softmax(
-                    model(image_v.permute(0, 1, 3, 2))[1].permute(0, 1, 3, 2), 1)
-                logit += F.softmax(
-                    model(image_v.permute(0, 1, 3, 2).flip(dims=(2,)))[
-                        1].flip(dims=(2,)).permute(0, 1, 3, 2), 1)
-                logit += F.softmax(
-                    model(image_v.permute(0, 1, 3, 2).flip(dims=(3,)))[
-                        1].flip(dims=(3,)).permute(0, 1, 3, 2), 1)
-                logit += F.softmax(
-                    model(image_v.permute(0, 1, 3, 2).flip(dims=(2, 3)))[
-                        1].flip(dims=(2, 3)).permute(0, 1, 3, 2), 1)
-                output_v = logit / 8.0
+                out0_0, out1_0, out2_0, _, _, _ = model(image_v)
+                out0_1, out1_1, out2_1, _, _, _ = model(image_v.flip(dims=(2,)))
+                out0_1 = out0_1.flip(dims=(2,))
+                out1_1 = out1_1.flip(dims=(2,))
+                out2_1 = out2_1.flip(dims=(2,))
+                out0_2, out1_2, out2_2, _, _, _ = model(image_v.flip(dims=(3,)))
+                out0_2 = out0_2.flip(dims=(3,))
+                out1_2 = out1_2.flip(dims=(3,))
+                out2_2 = out2_2.flip(dims=(3,))
+                out0_3, out1_3, out2_3, _, _, _ = model(image_v.flip(dims=(2, 3)))
+                out0_3 = out0_3.flip(dims=(2, 3))
+                out1_3 = out1_3.flip(dims=(2, 3))
+                out2_3 = out2_3.flip(dims=(2, 3))
+                out0_4, out1_4, out2_4, _, _, _ = model(image_v.permute(0, 1, 3, 2))
+                out0_4 = out0_4.permute(0, 1, 3, 2)
+                out1_4 = out1_4.permute(0, 1, 3, 2)
+                out2_4 = out2_4.permute(0, 1, 3, 2)
+
+                output_0 = F.softmax(out0_0, 1)
+                output_0 += F.softmax(out0_1, 1)
+                output_0 += F.softmax(out0_2, 1)
+                output_0 += F.softmax(out0_3, 1)
+                output_0 += F.softmax(out0_4, 1)
+
+                output_1 = F.softmax(out1_0, 1)
+                output_1 += F.softmax(out1_1, 1)
+                output_1 += F.softmax(out1_2, 1)
+                output_1 += F.softmax(out1_3, 1)
+                output_1 += F.softmax(out1_4, 1)
+
+                output_2 = F.softmax(out2_0, 1)
+                output_2 += F.softmax(out2_1, 1)
+                output_2 += F.softmax(out2_2, 1)
+                output_2 += F.softmax(out2_3, 1)
+                output_2 += F.softmax(out2_4, 1)
+
+
+                logit0 = output_0 / 5.0
+                logit1 = output_1 / 5.0
+                logit2 = output_2 / 5.0
             elif testflip == 2:
                 out0_0, out1_0, out2_0, _, _, _ = model(image_v)
                 out0_1, out1_1, out2_1, _, _, _ = model(image_v.flip(dims=(2,)))
@@ -207,9 +231,9 @@ def validate_model2(model, data_val, criterion, epoch, header2, save_dir, save_f
 
 if __name__ == "__main__":
     args = get_arguments()
-    flip = 3
+    flip = 1
     pad_size = args.pad
-    epoch = 990
+    epoch = 0
     model_dir = args.model_save_path + "/model_epoch_" + str(epoch) + ".pwf"
     print(model_dir)
     model = torch.load(model_dir)
